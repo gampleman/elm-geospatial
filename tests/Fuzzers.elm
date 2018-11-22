@@ -1,10 +1,10 @@
-module Fuzzers exposing (geoCollectionFuzzer, geoItemFuzzer)
+module Fuzzers exposing (featureFuzzer, geoCollectionFuzzer)
 
 import Angle
 import Coordinates exposing (WGS84)
+import Feature exposing (Feature(..))
 import Fuzz exposing (Fuzzer, list)
 import GeoCollection exposing (GeoCollection)
-import GeoItem exposing (GeoItem(..))
 import LineString exposing (LineString(..))
 import Point exposing (Point(..))
 import Polygon exposing (LinearRing(..), Polygon(..))
@@ -12,7 +12,7 @@ import Polygon exposing (LinearRing(..), Polygon(..))
 
 geoCollectionFuzzer : Fuzzer a -> Fuzzer (GeoCollection WGS84 a)
 geoCollectionFuzzer =
-    list << geoItemFuzzer
+    list << featureFuzzer
 
 
 shortNonEmptyList : Fuzzer a -> Fuzzer (List a)
@@ -34,8 +34,8 @@ shortList a =
         ]
 
 
-geoItemFuzzer : Fuzzer a -> Fuzzer (GeoItem WGS84 a)
-geoItemFuzzer props =
+featureFuzzer : Fuzzer a -> Fuzzer (Feature WGS84 a)
+featureFuzzer props =
     Fuzz.oneOf
         [ Fuzz.map2 Points (shortNonEmptyList pointFuzzer) props
         , Fuzz.map2 LineStrings (shortNonEmptyList lineStringFuzzer) props

@@ -1,11 +1,12 @@
 module GeoCollectionTest exposing (encodingTest, strictDecodingTest)
 
 import Angle
+import Coordinates
 import Expect exposing (Expectation)
+import Feature exposing (Feature(..))
 import Fuzz exposing (Fuzzer, int, list, string)
 import Fuzzers exposing (geoCollectionFuzzer)
 import GeoCollection
-import GeoItem exposing (GeoItem(..))
 import Json.Decode
 import Json.Encode
 import LineString exposing (LineString(..))
@@ -16,7 +17,7 @@ import TestHelpers exposing (equalWithinTolerance)
 
 
 decode =
-    Json.Decode.decodeString (GeoCollection.strictDecoder (Json.Decode.map (always ()) Json.Decode.value))
+    Json.Decode.decodeString (GeoCollection.decoder (Json.Decode.map (always ()) Json.Decode.value))
 
 
 strictDecodingTest : Test
@@ -277,8 +278,47 @@ strictDecodingTest =
                         }
                     }]
                 }"""
-                    |> Json.Decode.decodeString (GeoCollection.strictDecoder propsDecoder)
+                    |> Json.Decode.decodeString
+                        (GeoCollection.advancedDecoder
+                            { featureDecoder = propsDecoder
+                            , coordinateDecoder = Coordinates.wgs84Decoder
+                            }
+                        )
                     |> Expect.equal (Ok [ Points [ Point.new { lng = 32, lat = 21 } ] { id = 32, name = "John Doe" } ])
+        , test "can decode unusual coordinate systems" <|
+            \() ->
+                let
+                    coordinateDecoder =
+                        Json.Decode.list Json.Decode.float
+                            |> Json.Decode.andThen
+                                (\l ->
+                                    case l of
+                                        [ lng, lat, alt ] ->
+                                            Json.Decode.succeed { lng = lng, lat = lat, alt = alt }
+
+                                        _ ->
+                                            Json.Decode.fail "wrong number of coordinates"
+                                )
+                in
+                """{
+                 "type": "FeatureCollection",
+                 "features": [{
+                     "type": "Feature",
+                     "properties": {
+                     },
+                     "geometry": {
+                         "type": "Point",
+                         "coordinates": [32, 21, 3]
+                     }
+                 }]
+             }"""
+                    |> Json.Decode.decodeString
+                        (GeoCollection.advancedDecoder
+                            { featureDecoder = Json.Decode.succeed ()
+                            , coordinateDecoder = coordinateDecoder
+                            }
+                        )
+                    |> Expect.equal (Ok [ Points [ Point { lng = 32, lat = 21, alt = 3 } ] () ])
         ]
 
 
@@ -410,6 +450,6 @@ encodingTest =
             \geocollection ->
                 geocollection
                     |> encode
-                    |> Json.Decode.decodeValue (GeoCollection.strictDecoder (Json.Decode.map (always ()) Json.Decode.value))
+                    |> Json.Decode.decodeValue (GeoCollection.decoder (Json.Decode.map (always ()) Json.Decode.value))
                     |> equalWithinTolerance (Ok geocollection)
         ]

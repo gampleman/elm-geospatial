@@ -1,11 +1,11 @@
-module GeoCollection exposing (GeoCollection, encode, strictDecoder)
+module GeoCollection exposing (GeoCollection, advancedDecoder, decoder, encode)
 
 {-| This represents a collection of geographical data points.
 -}
 
 import Angle
 import Coordinates exposing (WGS84)
-import GeoItem exposing (GeoItem(..))
+import Feature exposing (Feature(..))
 import Json.Decode as Decode exposing (Decoder)
 import Json.Encode as Encode exposing (Value)
 import LineString exposing (LineString(..))
@@ -14,20 +14,36 @@ import Polygon exposing (LinearRing(..), Polygon(..))
 
 
 type alias GeoCollection coordinates a =
-    List (GeoItem coordinates a)
+    List (Feature coordinates a)
 
 
 
 -- Decoding
 
 
-strictDecoder : Decoder a -> Decoder (GeoCollection WGS84 a)
-strictDecoder propDecoder =
-    Decode.field "features" <| Decode.list (strictFeatureDecoder propDecoder)
+decoder : Decoder a -> Decoder (GeoCollection WGS84 a)
+decoder propertiesDecoder =
+    strictDecoder Coordinates.wgs84Decoder (Decode.field "properties" propertiesDecoder)
 
 
-strictFeatureDecoder : Decoder a -> Decoder (GeoItem WGS84 a)
-strictFeatureDecoder propDecoder =
+type alias DecoderOptions coord a =
+    { featureDecoder : Decoder a
+    , coordinateDecoder : Decoder coord
+    }
+
+
+advancedDecoder : DecoderOptions coord a -> Decoder (GeoCollection coord a)
+advancedDecoder { featureDecoder, coordinateDecoder } =
+    strictDecoder coordinateDecoder featureDecoder
+
+
+strictDecoder : Decoder coordinates -> Decoder a -> Decoder (GeoCollection coordinates a)
+strictDecoder coordDecoder propDecoder =
+    Decode.field "features" <| Decode.list (strictFeatureDecoder coordDecoder propDecoder)
+
+
+strictFeatureDecoder : Decoder coordinates -> Decoder a -> Decoder (Feature coordinates a)
+strictFeatureDecoder coordDecoder propDecoder =
     Decode.field "type" Decode.string
         |> Decode.andThen
             (\t0 ->
@@ -38,22 +54,22 @@ strictFeatureDecoder propDecoder =
                                 (\( t, prop ) ->
                                     case t of
                                         "Point" ->
-                                            Decode.map (\points -> Points points prop) strictPointDecoder
+                                            Decode.map (\points -> Points points prop) (strictPointDecoder coordDecoder)
 
                                         "MultiPoint" ->
-                                            Decode.map (\points -> Points points prop) strictMultiPointDecoder
+                                            Decode.map (\points -> Points points prop) (strictMultiPointDecoder coordDecoder)
 
                                         "LineString" ->
-                                            Decode.map (\lines -> LineStrings lines prop) strictLineStringDecoder
+                                            Decode.map (\lines -> LineStrings lines prop) (strictLineStringDecoder coordDecoder)
 
                                         "MultiLineString" ->
-                                            Decode.map (\lines -> LineStrings lines prop) strictMultiLineStringDecoder
+                                            Decode.map (\lines -> LineStrings lines prop) (strictMultiLineStringDecoder coordDecoder)
 
                                         "Polygon" ->
-                                            Decode.map (\polygons -> Polygons polygons prop) strictPolygonDecoder
+                                            Decode.map (\polygons -> Polygons polygons prop) (strictPolygonDecoder coordDecoder)
 
                                         "MultiPolygon" ->
-                                            Decode.map (\polygons -> Polygons polygons prop) strictMultiPolygonDecoder
+                                            Decode.map (\polygons -> Polygons polygons prop) (strictMultiPolygonDecoder coordDecoder)
 
                                         _ ->
                                             Decode.fail ("The type '" ++ t ++ "' is not supported.")
@@ -64,33 +80,19 @@ strictFeatureDecoder propDecoder =
             )
 
 
-strictDecodePosition : Decoder WGS84
-strictDecodePosition =
-    Decode.list Decode.float
-        |> Decode.andThen
-            (\l ->
-                case l of
-                    [ lng, lat ] ->
-                        Decode.succeed { lng = Angle.degrees lng, lat = Angle.degrees lat }
-
-                    _ ->
-                        Decode.fail "Wrong number of coordinates"
-            )
+strictPointDecoder : Decoder coordinates -> Decoder (List (Point coordinates))
+strictPointDecoder coordDecoder =
+    Decode.map List.singleton <| Decode.map Point <| Decode.at [ "geometry", "coordinates" ] coordDecoder
 
 
-strictPointDecoder : Decoder (List (Point WGS84))
-strictPointDecoder =
-    Decode.map List.singleton <| Decode.map Point <| Decode.at [ "geometry", "coordinates" ] strictDecodePosition
+strictMultiPointDecoder : Decoder coordinates -> Decoder (List (Point coordinates))
+strictMultiPointDecoder coordDecoder =
+    Decode.map (List.map Point) <| Decode.at [ "geometry", "coordinates" ] <| Decode.list coordDecoder
 
 
-strictMultiPointDecoder : Decoder (List (Point WGS84))
-strictMultiPointDecoder =
-    Decode.map (List.map Point) <| Decode.at [ "geometry", "coordinates" ] <| Decode.list strictDecodePosition
-
-
-strictLineStringHelper : Decoder (LineString WGS84)
-strictLineStringHelper =
-    Decode.list strictDecodePosition
+strictLineStringHelper : Decoder coordinates -> Decoder (LineString coordinates)
+strictLineStringHelper coordDecoder =
+    Decode.list coordDecoder
         |> Decode.andThen
             (\l ->
                 case l of
@@ -102,17 +104,17 @@ strictLineStringHelper =
             )
 
 
-strictLineStringDecoder : Decoder (List (LineString WGS84))
-strictLineStringDecoder =
-    Decode.map List.singleton <| Decode.at [ "geometry", "coordinates" ] strictLineStringHelper
+strictLineStringDecoder : Decoder coordinates -> Decoder (List (LineString coordinates))
+strictLineStringDecoder coordDecoder =
+    Decode.map List.singleton <| Decode.at [ "geometry", "coordinates" ] (strictLineStringHelper coordDecoder)
 
 
-strictMultiLineStringDecoder : Decoder (List (LineString WGS84))
-strictMultiLineStringDecoder =
-    Decode.at [ "geometry", "coordinates" ] <| Decode.list strictLineStringHelper
+strictMultiLineStringDecoder : Decoder coordinates -> Decoder (List (LineString coordinates))
+strictMultiLineStringDecoder coordDecoder =
+    Decode.at [ "geometry", "coordinates" ] <| Decode.list (strictLineStringHelper coordDecoder)
 
 
-strictPolygonDecoderHelper : List (LinearRing WGS84) -> Decoder (Polygon WGS84)
+strictPolygonDecoderHelper : List (LinearRing coordinates) -> Decoder (Polygon coordinates)
 strictPolygonDecoderHelper positions =
     case positions of
         [] ->
@@ -122,9 +124,9 @@ strictPolygonDecoderHelper positions =
             Decode.succeed (Polygon outer holes)
 
 
-strictDecodeLinearRing : Decoder (LinearRing WGS84)
-strictDecodeLinearRing =
-    Decode.list strictDecodePosition
+strictDecodeLinearRing : Decoder coordinates -> Decoder (LinearRing coordinates)
+strictDecodeLinearRing coordDecoder =
+    Decode.list coordDecoder
         |> Decode.andThen
             (\l ->
                 case l of
@@ -136,14 +138,14 @@ strictDecodeLinearRing =
             )
 
 
-strictPolygonDecoder : Decoder (List (Polygon WGS84))
-strictPolygonDecoder =
-    Decode.map List.singleton <| Decode.andThen strictPolygonDecoderHelper <| Decode.at [ "geometry", "coordinates" ] <| Decode.list strictDecodeLinearRing
+strictPolygonDecoder : Decoder coordinates -> Decoder (List (Polygon coordinates))
+strictPolygonDecoder coordDecoder =
+    Decode.map List.singleton <| Decode.andThen strictPolygonDecoderHelper <| Decode.at [ "geometry", "coordinates" ] <| Decode.list (strictDecodeLinearRing coordDecoder)
 
 
-strictMultiPolygonDecoder : Decoder (List (Polygon WGS84))
-strictMultiPolygonDecoder =
-    Decode.list strictDecodeLinearRing
+strictMultiPolygonDecoder : Decoder coordinates -> Decoder (List (Polygon coordinates))
+strictMultiPolygonDecoder coordDecoder =
+    Decode.list (strictDecodeLinearRing coordDecoder)
         |> Decode.andThen strictPolygonDecoderHelper
         |> Decode.list
         |> Decode.at [ "geometry", "coordinates" ]
@@ -161,12 +163,12 @@ encode propsEncode foreignEncode geoCollection =
         ]
 
 
-encodeItem : (a -> Value) -> (a -> List ( String, Value )) -> GeoItem WGS84 a -> Value
-encodeItem propsEncode foreignEncode geoitem =
-    foreignEncode (GeoItem.properties geoitem)
+encodeItem : (a -> Value) -> (a -> List ( String, Value )) -> Feature WGS84 a -> Value
+encodeItem propsEncode foreignEncode feature =
+    foreignEncode (Feature.properties feature)
         ++ [ ( "type", Encode.string "Feature" )
-           , ( "properties", propsEncode (GeoItem.properties geoitem) )
-           , ( "geometry", encodeGeometries geoitem )
+           , ( "properties", propsEncode (Feature.properties feature) )
+           , ( "geometry", encodeGeometries feature )
            ]
         |> Encode.object
 
@@ -176,9 +178,9 @@ encodePosition { lng, lat } =
     Encode.list Encode.float [ Angle.inDegrees lng, Angle.inDegrees lat ]
 
 
-encodeGeometries : GeoItem WGS84 a -> Value
-encodeGeometries geoitem =
-    case geoitem of
+encodeGeometries : Feature WGS84 a -> Value
+encodeGeometries feature =
+    case feature of
         Points points _ ->
             Encode.object
                 [ ( "type", Encode.string "MultiPoint" )
