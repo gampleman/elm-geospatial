@@ -12,6 +12,8 @@
         "ianmackenzie/elm-units": "1.0.0 <= v < 2.0.0"
     },
     "test-dependencies": {
-        "elm-explorations/test": "1.1.0 <= v < 2.0.0"
+        "elm/regex": "1.0.0 <= v < 2.0.0",
+        "elm-explorations/test": "1.1.0 <= v < 2.0.0",
+        "ianmackenzie/elm-float-extra": "1.0.1 <= v < 2.0.0"
     }
 }

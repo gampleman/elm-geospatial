@@ -1,5 +1,6 @@
 module GeoCollectionTest exposing (encodingTest, strictDecodingTest)
 
+import Angle
 import Expect exposing (Expectation)
 import Fuzz exposing (Fuzzer, int, list, string)
 import Fuzzers exposing (geoCollectionFuzzer)
@@ -11,6 +12,7 @@ import LineString exposing (LineString(..))
 import Point exposing (Point(..))
 import Polygon exposing (LinearRing(..), Polygon(..))
 import Test exposing (Test, describe, fuzz, test)
+import TestHelpers exposing (equalWithinTolerance)
 
 
 decode =
@@ -44,7 +46,7 @@ strictDecodingTest =
                         }
                     }]
                 }"""
-                    |> Expect.equal (Ok [ Points [ Point { lng = 32, lat = 21 } ] () ])
+                    |> Expect.equal (Ok [ Points [ Point.new { lng = 32, lat = 21 } ] () ])
         , test "succeeds for a multipoint" <|
             \() ->
                 decode """{
@@ -58,7 +60,7 @@ strictDecodingTest =
                         }
                     }]
                 }"""
-                    |> Expect.equal (Ok [ Points [ Point { lng = 32, lat = 21 }, Point { lng = 21, lat = 31 } ] () ])
+                    |> Expect.equal (Ok [ Points [ Point.new { lng = 32, lat = 21 }, Point.new { lng = 21, lat = 31 } ] () ])
         , test "fails for a point with too few coordinates" <|
             \() ->
                 decode """{
@@ -100,7 +102,16 @@ strictDecodingTest =
                         }
                     }]
                 }"""
-                    |> Expect.equal (Ok [ LineStrings [ LineString { lng = 32, lat = 21 } { lng = 21, lat = 31 } [] ] () ])
+                    |> Expect.equal
+                        (Ok
+                            [ LineStrings
+                                [ LineString { lng = Angle.degrees 32, lat = Angle.degrees 21 }
+                                    { lng = Angle.degrees 21, lat = Angle.degrees 31 }
+                                    []
+                                ]
+                                ()
+                            ]
+                        )
         , test "succeeds for a multilinestring" <|
             \() ->
                 decode """{
@@ -114,7 +125,16 @@ strictDecodingTest =
                         }
                     }]
                 }"""
-                    |> Expect.equal (Ok [ LineStrings [ LineString { lng = 32, lat = 21 } { lng = 21, lat = 31 } [] ] () ])
+                    |> Expect.equal
+                        (Ok
+                            [ LineStrings
+                                [ LineString { lng = Angle.degrees 32, lat = Angle.degrees 21 }
+                                    { lng = Angle.degrees 21, lat = Angle.degrees 31 }
+                                    []
+                                ]
+                                ()
+                            ]
+                        )
         , test "fails for a linestring with insufficient coordinates" <|
             \() ->
                 decode """{
@@ -146,7 +166,12 @@ strictDecodingTest =
                         (Ok
                             [ Polygons
                                 [ Polygon
-                                    (LinearRing { lng = 32, lat = 21 } { lng = 21, lat = 31 } { lng = 23, lat = 32 } { lng = 32, lat = 21 } [])
+                                    (LinearRing { lng = Angle.degrees 32, lat = Angle.degrees 21 }
+                                        { lng = Angle.degrees 21, lat = Angle.degrees 31 }
+                                        { lng = Angle.degrees 23, lat = Angle.degrees 32 }
+                                        { lng = Angle.degrees 32, lat = Angle.degrees 21 }
+                                        []
+                                    )
                                     []
                                 ]
                                 ()
@@ -172,8 +197,18 @@ strictDecodingTest =
                         (Ok
                             [ Polygons
                                 [ Polygon
-                                    (LinearRing { lng = 32, lat = 21 } { lng = 21, lat = 31 } { lng = 23, lat = 32 } { lng = 32, lat = 21 } [])
-                                    [ LinearRing { lng = 1, lat = 1 } { lng = 2, lat = 2 } { lng = 3, lat = 3 } { lng = 4, lat = 4 } [ { lng = 5, lat = 5 } ] ]
+                                    (LinearRing { lng = Angle.degrees 32, lat = Angle.degrees 21 }
+                                        { lng = Angle.degrees 21, lat = Angle.degrees 31 }
+                                        { lng = Angle.degrees 23, lat = Angle.degrees 32 }
+                                        { lng = Angle.degrees 32, lat = Angle.degrees 21 }
+                                        []
+                                    )
+                                    [ LinearRing { lng = Angle.degrees 1, lat = Angle.degrees 1 }
+                                        { lng = Angle.degrees 2, lat = Angle.degrees 2 }
+                                        { lng = Angle.degrees 3, lat = Angle.degrees 3 }
+                                        { lng = Angle.degrees 4, lat = Angle.degrees 4 }
+                                        [ { lng = Angle.degrees 5, lat = Angle.degrees 5 } ]
+                                    ]
                                 ]
                                 ()
                             ]
@@ -209,7 +244,12 @@ strictDecodingTest =
                         (Ok
                             [ Polygons
                                 [ Polygon
-                                    (LinearRing { lng = 32, lat = 21 } { lng = 21, lat = 31 } { lng = 23, lat = 32 } { lng = 32, lat = 21 } [])
+                                    (LinearRing { lng = Angle.degrees 32, lat = Angle.degrees 21 }
+                                        { lng = Angle.degrees 21, lat = Angle.degrees 31 }
+                                        { lng = Angle.degrees 23, lat = Angle.degrees 32 }
+                                        { lng = Angle.degrees 32, lat = Angle.degrees 21 }
+                                        []
+                                    )
                                     []
                                 ]
                                 ()
@@ -238,7 +278,7 @@ strictDecodingTest =
                     }]
                 }"""
                     |> Json.Decode.decodeString (GeoCollection.strictDecoder propsDecoder)
-                    |> Expect.equal (Ok [ Points [ Point { lng = 32, lat = 21 } ] { id = 32, name = "John Doe" } ])
+                    |> Expect.equal (Ok [ Points [ Point.new { lng = 32, lat = 21 } ] { id = 32, name = "John Doe" } ])
         ]
 
 
@@ -257,7 +297,6 @@ expectEqualsJson string val =
     in
     if actual == expected then
         actual |> Expect.equal expected
-
     else
         Json.Encode.encode 4 val |> Expect.equal string
 
@@ -277,7 +316,7 @@ encodingTest =
                         """
         , test "points" <|
             \() ->
-                [ Points [ Point { lng = 32, lat = 21 } ] () ]
+                [ Points [ Point.new { lng = 32, lat = 21 } ] () ]
                     |> encode
                     |> expectEqualsJson """
                     {
@@ -294,7 +333,7 @@ encodingTest =
                     """
         , test "line strings" <|
             \() ->
-                [ LineStrings [ LineString { lng = 32, lat = 21 } { lng = 21, lat = 31 } [] ] () ]
+                [ LineStrings [ LineString { lng = Angle.degrees 32, lat = Angle.degrees 21 } { lng = Angle.degrees 21, lat = Angle.degrees 31 } [] ] () ]
                     |> encode
                     |> expectEqualsJson """
                     {
@@ -313,8 +352,18 @@ encodingTest =
             \() ->
                 [ Polygons
                     [ Polygon
-                        (LinearRing { lng = 32, lat = 21 } { lng = 21, lat = 31 } { lng = 23, lat = 32 } { lng = 32, lat = 21 } [])
-                        [ LinearRing { lng = 1, lat = 1 } { lng = 2, lat = 2 } { lng = 3, lat = 3 } { lng = 4, lat = 4 } [ { lng = 5, lat = 5 } ] ]
+                        (LinearRing { lng = Angle.degrees 32, lat = Angle.degrees 21 }
+                            { lng = Angle.degrees 21, lat = Angle.degrees 31 }
+                            { lng = Angle.degrees 23, lat = Angle.degrees 32 }
+                            { lng = Angle.degrees 32, lat = Angle.degrees 21 }
+                            []
+                        )
+                        [ LinearRing { lng = Angle.degrees 1, lat = Angle.degrees 1 }
+                            { lng = Angle.degrees 2, lat = Angle.degrees 2 }
+                            { lng = Angle.degrees 3, lat = Angle.degrees 3 }
+                            { lng = Angle.degrees 4, lat = Angle.degrees 4 }
+                            [ { lng = Angle.degrees 5, lat = Angle.degrees 5 } ]
+                        ]
                     ]
                     ()
                 ]
@@ -337,7 +386,7 @@ encodingTest =
                     """
         , test "can encode properties and attributes" <|
             \() ->
-                [ Points [ Point { lng = 32, lat = 21 } ] { id = 32, name = "John Doe" } ]
+                [ Points [ Point.new { lng = 32, lat = 21 } ] { id = 32, name = "John Doe" } ]
                     |> GeoCollection.encode
                         (\{ name } -> Json.Encode.object [ ( "name", Json.Encode.string name ) ])
                         (\{ id } -> [ ( "id", Json.Encode.int id ) ])
@@ -362,5 +411,5 @@ encodingTest =
                 geocollection
                     |> encode
                     |> Json.Decode.decodeValue (GeoCollection.strictDecoder (Json.Decode.map (always ()) Json.Decode.value))
-                    |> Expect.equal (Ok geocollection)
+                    |> equalWithinTolerance (Ok geocollection)
         ]

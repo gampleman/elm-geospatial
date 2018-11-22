@@ -1,7 +1,8 @@
-module Helpers exposing (degreesToAngle, lengthToAngle)
+module Helpers exposing (angleToLength, degreesToAngle, lengthToAngle)
 
 import Angle exposing (Angle)
 import Length exposing (Length)
+import Quantity exposing (Quantity, Rate)
 
 
 earthRadius : Float
@@ -9,9 +10,18 @@ earthRadius =
     6371.0088
 
 
+lengthPerAngle =
+    Length.kilometers earthRadius |> Quantity.per (Angle.radians 1)
+
+
 lengthToAngle : Length -> Angle
-lengthToAngle l =
-    Angle.radians <| Length.inKilometers l / earthRadius
+lengthToAngle =
+    Quantity.at_ lengthPerAngle
+
+
+angleToLength : Angle -> Length
+angleToLength =
+    Quantity.at lengthPerAngle
 
 
 mod : Float -> Float -> Float

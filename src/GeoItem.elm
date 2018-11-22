@@ -1,18 +1,17 @@
 module GeoItem exposing (GeoItem(..), properties)
 
-import GeoPosition exposing (GeoPosition)
 import LineString exposing (LineString)
 import Point exposing (Point)
 import Polygon exposing (Polygon)
 
 
-type GeoItem a
-    = Points (List Point) a
-    | LineStrings (List LineString) a
-    | Polygons (List Polygon) a
+type GeoItem coordinates a
+    = Points (List (Point coordinates)) a
+    | LineStrings (List (LineString coordinates)) a
+    | Polygons (List (Polygon coordinates)) a
 
 
-properties : GeoItem a -> a
+properties : GeoItem coordinates a -> a
 properties geoItem =
     case geoItem of
         Points _ a ->

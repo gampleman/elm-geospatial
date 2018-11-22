@@ -1,15 +1,16 @@
 module Fuzzers exposing (geoCollectionFuzzer, geoItemFuzzer)
 
+import Angle
+import Coordinates exposing (WGS84)
 import Fuzz exposing (Fuzzer, list)
 import GeoCollection exposing (GeoCollection)
 import GeoItem exposing (GeoItem(..))
-import GeoPosition exposing (GeoPosition)
 import LineString exposing (LineString(..))
 import Point exposing (Point(..))
 import Polygon exposing (LinearRing(..), Polygon(..))
 
 
-geoCollectionFuzzer : Fuzzer a -> Fuzzer (GeoCollection a)
+geoCollectionFuzzer : Fuzzer a -> Fuzzer (GeoCollection WGS84 a)
 geoCollectionFuzzer =
     list << geoItemFuzzer
 
@@ -33,7 +34,7 @@ shortList a =
         ]
 
 
-geoItemFuzzer : Fuzzer a -> Fuzzer (GeoItem a)
+geoItemFuzzer : Fuzzer a -> Fuzzer (GeoItem WGS84 a)
 geoItemFuzzer props =
     Fuzz.oneOf
         [ Fuzz.map2 Points (shortNonEmptyList pointFuzzer) props
@@ -42,26 +43,26 @@ geoItemFuzzer props =
         ]
 
 
-geoPositionFuzzer : Fuzzer GeoPosition
-geoPositionFuzzer =
-    Fuzz.map2 GeoPosition (Fuzz.floatRange -90 90) (Fuzz.floatRange -180 180)
+wsg84Fuzzer : Fuzzer WGS84
+wsg84Fuzzer =
+    Fuzz.map2 WGS84 (Fuzz.map Angle.degrees (Fuzz.floatRange -90 90)) (Fuzz.map Angle.degrees (Fuzz.floatRange -180 180))
 
 
-pointFuzzer : Fuzzer Point
+pointFuzzer : Fuzzer (Point WGS84)
 pointFuzzer =
-    Fuzz.map Point geoPositionFuzzer
+    Fuzz.map Point wsg84Fuzzer
 
 
-lineStringFuzzer : Fuzzer LineString
+lineStringFuzzer : Fuzzer (LineString WGS84)
 lineStringFuzzer =
-    Fuzz.map3 LineString geoPositionFuzzer geoPositionFuzzer (shortList geoPositionFuzzer)
+    Fuzz.map3 LineString wsg84Fuzzer wsg84Fuzzer (shortList wsg84Fuzzer)
 
 
-polygonFuzzer : Fuzzer Polygon
+polygonFuzzer : Fuzzer (Polygon WGS84)
 polygonFuzzer =
     Fuzz.map2 Polygon linearRingFuzzer (shortList linearRingFuzzer)
 
 
-linearRingFuzzer : Fuzzer LinearRing
+linearRingFuzzer : Fuzzer (LinearRing WGS84)
 linearRingFuzzer =
-    Fuzz.map5 LinearRing geoPositionFuzzer geoPositionFuzzer geoPositionFuzzer geoPositionFuzzer (shortList geoPositionFuzzer)
+    Fuzz.map5 LinearRing wsg84Fuzzer wsg84Fuzzer wsg84Fuzzer wsg84Fuzzer (shortList wsg84Fuzzer)
