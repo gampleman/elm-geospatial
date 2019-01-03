@@ -1,10 +1,18 @@
-module Point exposing (Point(..), bearing, destination, distance, new)
+module Point exposing (Point(..), bearing, destination, distance, new, voronoi)
 
 import Angle exposing (Angle)
+import Array
+import BBox exposing (BBox)
+import BoundingBox2d exposing (BoundingBox2d)
 import Coordinates exposing (WGS84)
+import Dict
 import Helpers exposing (angleToLength, degreesToAngle, lengthToAngle)
 import Length exposing (Length)
+import Point2d exposing (Point2d)
+import Polygon exposing (Polygon)
+import Polygon2d exposing (Polygon2d)
 import Quantity exposing (Quantity(..))
+import VoronoiDiagram2d exposing (VoronoiDiagram2d)
 
 
 type Point coordinate
@@ -97,3 +105,42 @@ distance from to =
             powsin dLat + powsin dLon * Angle.cos lat1 * Angle.cos lat2
     in
     angleToLength (Angle.radians (2 * atan2 (sqrt a) (sqrt (1 - a))))
+
+
+pointToPoint2d : Point WGS84 -> Point2d
+pointToPoint2d (Point { lng, lat }) =
+    Point2d.fromCoordinates ( Angle.inDegrees lng, Angle.inDegrees lat )
+
+
+bboxToBoundingBox2d : BBox -> BoundingBox2d
+bboxToBoundingBox2d bbox =
+    let
+        { southWest, northEast } =
+            BBox.coordinates bbox
+    in
+    BoundingBox2d.from (pointToPoint2d (Point southWest)) (pointToPoint2d (Point northEast))
+
+
+polygon2dToPolygon : Polygon2d -> Maybe (Polygon WGS84)
+polygon2dToPolygon poly =
+    Polygon2d.outerLoop poly
+        |> List.map (\point -> { lng = point |> Point2d.xCoordinate, lat = point |> Point2d.yCoordinate })
+        |> List.reverse
+        |> Polygon.new
+
+
+voronoi : BBox -> List (Point WGS84) -> List (Maybe (Polygon WGS84))
+voronoi bbox points =
+    case VoronoiDiagram2d.fromPoints (Array.fromList (List.map pointToPoint2d points)) of
+        Ok diagram ->
+            let
+                dict =
+                    VoronoiDiagram2d.polygons (bboxToBoundingBox2d bbox) diagram
+                        |> List.filterMap (\( point, poly ) -> Maybe.map (Tuple.pair (Point2d.coordinates point)) (polygon2dToPolygon poly))
+                        |> Dict.fromList
+            in
+            points
+                |> List.map (\(Point { lng, lat }) -> Dict.get ( Angle.inDegrees lng, Angle.inDegrees lat ) dict)
+
+        Err _ ->
+            List.map (always Nothing) points

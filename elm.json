@@ -4,16 +4,26 @@
     "summary": "Geospatial analysis",
     "license": "MIT",
     "version": "1.0.0",
-    "exposed-modules": [],
+    "exposed-modules": [
+        "GeoCollection",
+        "Feature",
+        "Point",
+        "LineString",
+        "Polygon",
+        "Coordinates",
+        "BBox"
+    ],
     "elm-version": "0.19.0 <= v < 0.20.0",
     "dependencies": {
         "elm/core": "1.0.0 <= v < 2.0.0",
         "elm/json": "1.0.0 <= v < 2.0.0",
+        "ianmackenzie/elm-geometry": "1.2.1 <= v < 2.0.0",
         "ianmackenzie/elm-units": "1.0.0 <= v < 2.0.0"
     },
     "test-dependencies": {
         "elm/regex": "1.0.0 <= v < 2.0.0",
         "elm-explorations/test": "1.1.0 <= v < 2.0.0",
-        "ianmackenzie/elm-float-extra": "1.0.1 <= v < 2.0.0"
+        "ianmackenzie/elm-float-extra": "1.0.1 <= v < 2.0.0",
+        "elm/url": "1.0.0 <= v < 2.0.0"
     }
 }

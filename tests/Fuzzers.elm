@@ -65,4 +65,4 @@ polygonFuzzer =
 
 linearRingFuzzer : Fuzzer (LinearRing WGS84)
 linearRingFuzzer =
-    Fuzz.map5 LinearRing wsg84Fuzzer wsg84Fuzzer wsg84Fuzzer wsg84Fuzzer (shortList wsg84Fuzzer)
+    Fuzz.map4 LinearRing wsg84Fuzzer wsg84Fuzzer wsg84Fuzzer (shortList wsg84Fuzzer)

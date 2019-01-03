@@ -18,6 +18,30 @@ type alias GeoCollection coordinates a =
 
 
 
+-- Maps
+
+
+mapCoordinates : (a -> b) -> GeoCollection a props -> GeoCollection b props
+mapCoordinates f =
+    List.map
+        (\feature ->
+            case feature of
+                Points points props ->
+                    Points (List.map (\(Point coord) -> Point (f coord)) points) props
+
+                LineStrings ls props ->
+                    LineStrings (List.map (\(LineString a b cs) -> LineString (f a) (f b) (List.map f cs)) ls) props
+
+                Polygons polys props ->
+                    let
+                        mapLR (LinearRing a b c es) =
+                            LinearRing (f a) (f b) (f c) (List.map f es)
+                    in
+                    Polygons (List.map (\(Polygon outer inners) -> Polygon (mapLR outer) (List.map mapLR inners)) polys) props
+        )
+
+
+
 -- Decoding
 
 
@@ -130,8 +154,17 @@ strictDecodeLinearRing coordDecoder =
         |> Decode.andThen
             (\l ->
                 case l of
-                    a :: b :: c :: d :: rest ->
-                        Decode.succeed (LinearRing a b c d rest)
+                    a :: b :: c :: rest ->
+                        case List.reverse rest of
+                            [] ->
+                                Decode.fail "Not enough coordinates for a linear ring"
+
+                            h :: t ->
+                                if h == a then
+                                    Decode.succeed (LinearRing a b c (List.reverse t))
+
+                                else
+                                    Decode.fail "First and last coordinate must match in a polygon's linear ring"
 
                     _ ->
                         Decode.fail "Not enough coordinates for a linear ring"
@@ -201,5 +234,5 @@ encodeGeometries feature =
 
 
 encodeLinearRing : LinearRing WGS84 -> Value
-encodeLinearRing (LinearRing a b c d rest) =
-    Encode.list encodePosition (a :: b :: c :: d :: rest)
+encodeLinearRing (LinearRing a b c rest) =
+    Encode.list encodePosition (a :: b :: c :: rest ++ [ a ])

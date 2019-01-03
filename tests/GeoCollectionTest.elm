@@ -170,7 +170,6 @@ strictDecodingTest =
                                     (LinearRing { lng = Angle.degrees 32, lat = Angle.degrees 21 }
                                         { lng = Angle.degrees 21, lat = Angle.degrees 31 }
                                         { lng = Angle.degrees 23, lat = Angle.degrees 32 }
-                                        { lng = Angle.degrees 32, lat = Angle.degrees 21 }
                                         []
                                     )
                                     []
@@ -189,7 +188,7 @@ strictDecodingTest =
                             "type": "Polygon",
                             "coordinates": [
                                 [[32, 21], [21, 31], [23, 32], [32, 21]],
-                                [[1, 1], [2, 2], [3, 3], [4, 4], [5, 5]]
+                                [[1, 1], [2, 2], [3, 3], [4, 4], [1, 1]]
                             ]
                         }
                     }]
@@ -201,14 +200,12 @@ strictDecodingTest =
                                     (LinearRing { lng = Angle.degrees 32, lat = Angle.degrees 21 }
                                         { lng = Angle.degrees 21, lat = Angle.degrees 31 }
                                         { lng = Angle.degrees 23, lat = Angle.degrees 32 }
-                                        { lng = Angle.degrees 32, lat = Angle.degrees 21 }
                                         []
                                     )
                                     [ LinearRing { lng = Angle.degrees 1, lat = Angle.degrees 1 }
                                         { lng = Angle.degrees 2, lat = Angle.degrees 2 }
                                         { lng = Angle.degrees 3, lat = Angle.degrees 3 }
-                                        { lng = Angle.degrees 4, lat = Angle.degrees 4 }
-                                        [ { lng = Angle.degrees 5, lat = Angle.degrees 5 } ]
+                                        [ { lng = Angle.degrees 4, lat = Angle.degrees 4 } ]
                                     ]
                                 ]
                                 ()
@@ -248,7 +245,6 @@ strictDecodingTest =
                                     (LinearRing { lng = Angle.degrees 32, lat = Angle.degrees 21 }
                                         { lng = Angle.degrees 21, lat = Angle.degrees 31 }
                                         { lng = Angle.degrees 23, lat = Angle.degrees 32 }
-                                        { lng = Angle.degrees 32, lat = Angle.degrees 21 }
                                         []
                                     )
                                     []
@@ -337,6 +333,7 @@ expectEqualsJson string val =
     in
     if actual == expected then
         actual |> Expect.equal expected
+
     else
         Json.Encode.encode 4 val |> Expect.equal string
 
@@ -395,14 +392,12 @@ encodingTest =
                         (LinearRing { lng = Angle.degrees 32, lat = Angle.degrees 21 }
                             { lng = Angle.degrees 21, lat = Angle.degrees 31 }
                             { lng = Angle.degrees 23, lat = Angle.degrees 32 }
-                            { lng = Angle.degrees 32, lat = Angle.degrees 21 }
                             []
                         )
                         [ LinearRing { lng = Angle.degrees 1, lat = Angle.degrees 1 }
                             { lng = Angle.degrees 2, lat = Angle.degrees 2 }
                             { lng = Angle.degrees 3, lat = Angle.degrees 3 }
-                            { lng = Angle.degrees 4, lat = Angle.degrees 4 }
-                            [ { lng = Angle.degrees 5, lat = Angle.degrees 5 } ]
+                            [ { lng = Angle.degrees 4, lat = Angle.degrees 4 } ]
                         ]
                     ]
                     ()
@@ -418,7 +413,7 @@ encodingTest =
                                 "type": "MultiPolygon",
                                 "coordinates": [[
                                     [[32, 21], [21, 31], [23, 32], [32, 21]],
-                                    [[1, 1], [2, 2], [3, 3], [4, 4], [5, 5]]
+                                    [[1, 1], [2, 2], [3, 3], [4, 4], [1, 1]]
                                 ]]
                             }
                         }]
