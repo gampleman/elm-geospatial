@@ -4,8 +4,8 @@ import Angle
 import Coordinates exposing (WGS84)
 import Expect exposing (Expectation, FloatingPointTolerance)
 import Feature exposing (Feature(..))
+import FeatureCollection exposing (encode)
 import Float.Extra as Float
-import GeoCollection exposing (encode)
 import Json.Encode
 import Polygon exposing (LinearRing(..), Polygon(..))
 import Regex
@@ -66,7 +66,6 @@ dataUrl expected actual =
                     [ ( "fill", Json.Encode.string "red" ), ( "label", Json.Encode.string "actual" ) ]
                 )
         )
-        (always [])
         (List.map (\exp -> Polygons [ exp ] True) expected ++ List.map (\act -> Polygons [ act ] False) actual)
         |> Json.Encode.encode 0
         |> String.append "data:application/json,"

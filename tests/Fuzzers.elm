@@ -1,17 +1,17 @@
-module Fuzzers exposing (featureFuzzer, geoCollectionFuzzer)
+module Fuzzers exposing (featureCollectionFuzzer, featureFuzzer)
 
 import Angle
 import Coordinates exposing (WGS84)
 import Feature exposing (Feature(..))
+import FeatureCollection exposing (FeatureCollection)
 import Fuzz exposing (Fuzzer, list)
-import GeoCollection exposing (GeoCollection)
 import LineString exposing (LineString(..))
 import Point exposing (Point(..))
 import Polygon exposing (LinearRing(..), Polygon(..))
 
 
-geoCollectionFuzzer : Fuzzer a -> Fuzzer (GeoCollection WGS84 a)
-geoCollectionFuzzer =
+featureCollectionFuzzer : Fuzzer a -> Fuzzer (FeatureCollection WGS84 a)
+featureCollectionFuzzer =
     list << featureFuzzer
 
 

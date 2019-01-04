@@ -1,12 +1,12 @@
-module GeoCollectionTest exposing (encodingTest, strictDecodingTest)
+module FeatureCollectionTest exposing (encodingTest, normalizingDecodeTest, strictDecodingTest)
 
 import Angle
-import Coordinates
+import Coordinates exposing (wgs84Decoder)
 import Expect exposing (Expectation)
 import Feature exposing (Feature(..))
+import FeatureCollection exposing (DecoderMode(..))
 import Fuzz exposing (Fuzzer, int, list, string)
-import Fuzzers exposing (geoCollectionFuzzer)
-import GeoCollection
+import Fuzzers exposing (featureCollectionFuzzer)
 import Json.Decode
 import Json.Encode
 import LineString exposing (LineString(..))
@@ -17,7 +17,7 @@ import TestHelpers exposing (equalWithinTolerance)
 
 
 decode =
-    Json.Decode.decodeString (GeoCollection.decoder (Json.Decode.map (always ()) Json.Decode.value))
+    Json.Decode.decodeString (FeatureCollection.decoder (Json.Decode.map (always ()) Json.Decode.value))
 
 
 strictDecodingTest : Test
@@ -275,9 +275,10 @@ strictDecodingTest =
                     }]
                 }"""
                     |> Json.Decode.decodeString
-                        (GeoCollection.advancedDecoder
+                        (FeatureCollection.advancedDecoder
                             { featureDecoder = propsDecoder
                             , coordinateDecoder = Coordinates.wgs84Decoder
+                            , decoderMode = Strict
                             }
                         )
                     |> Expect.equal (Ok [ Points [ Point.new { lng = 32, lat = 21 } ] { id = 32, name = "John Doe" } ])
@@ -309,17 +310,45 @@ strictDecodingTest =
                  }]
              }"""
                     |> Json.Decode.decodeString
-                        (GeoCollection.advancedDecoder
+                        (FeatureCollection.advancedDecoder
                             { featureDecoder = Json.Decode.succeed ()
                             , coordinateDecoder = coordinateDecoder
+                            , decoderMode = Strict
                             }
                         )
                     |> Expect.equal (Ok [ Points [ Point { lng = 32, lat = 21, alt = 3 } ] () ])
         ]
 
 
+normalizingDecodeTest : Test
+normalizingDecodeTest =
+    [ ( "decodes a single feature", """{
+        "type": "Feature",
+        "geometry": {
+            "type": "Point",
+            "coordinates": [32, 21]
+        }
+    }""", [ Points [ Point.new { lng = 32, lat = 21 } ] () ] )
+    ]
+        |> List.map
+            (\( name, input, output ) ->
+                test name <|
+                    \() ->
+                        input
+                            |> Json.Decode.decodeString
+                                (FeatureCollection.advancedDecoder
+                                    { featureDecoder = Json.Decode.succeed ()
+                                    , coordinateDecoder = wgs84Decoder
+                                    , decoderMode = Normalizing
+                                    }
+                                )
+                            |> Expect.equal (Ok output)
+            )
+        |> describe "normalizing decoder"
+
+
 encode =
-    GeoCollection.encode (always Json.Encode.null) (always [])
+    FeatureCollection.encode (always Json.Encode.null)
 
 
 expectEqualsJson : String -> Json.Encode.Value -> Expectation
@@ -362,8 +391,25 @@ encodingTest =
                             "type": "Feature",
                             "properties": null,
                             "geometry": {
+                                "type": "Point",
+                                "coordinates": [32, 21]
+                            }
+                        }]
+                    }
+                    """
+        , test "multipoints" <|
+            \() ->
+                [ Points [ Point.new { lng = 32, lat = 21 }, Point.new { lng = 35, lat = 25 } ] () ]
+                    |> encode
+                    |> expectEqualsJson """
+                    {
+                        "type": "FeatureCollection",
+                        "features": [{
+                            "type": "Feature",
+                            "properties": null,
+                            "geometry": {
                                 "type": "MultiPoint",
-                                "coordinates": [[32, 21]]
+                                "coordinates": [[32, 21], [35, 25]]
                             }
                         }]
                     }
@@ -379,8 +425,8 @@ encodingTest =
                             "type": "Feature",
                             "properties": null,
                             "geometry": {
-                                "type": "MultiLineString",
-                                "coordinates": [[[32, 21], [21, 31]]]
+                                "type": "LineString",
+                                "coordinates": [[32, 21], [21, 31]]
                             }
                         }]
                     }
@@ -410,21 +456,23 @@ encodingTest =
                             "type": "Feature",
                             "properties": null,
                             "geometry": {
-                                "type": "MultiPolygon",
-                                "coordinates": [[
+                                "type": "Polygon",
+                                "coordinates": [
                                     [[32, 21], [21, 31], [23, 32], [32, 21]],
                                     [[1, 1], [2, 2], [3, 3], [4, 4], [1, 1]]
-                                ]]
+                                ]
                             }
                         }]
                     }
                     """
-        , test "can encode properties and attributes" <|
+        , test "can do custom encoding" <|
             \() ->
-                [ Points [ Point.new { lng = 32, lat = 21 } ] { id = 32, name = "John Doe" } ]
-                    |> GeoCollection.encode
-                        (\{ name } -> Json.Encode.object [ ( "name", Json.Encode.string name ) ])
-                        (\{ id } -> [ ( "id", Json.Encode.int id ) ])
+                [ Points [ Point { lng = 32, lat = 21, alt = 400 } ] { id = 32, name = "John Doe" } ]
+                    |> FeatureCollection.advancedEncode
+                        { encodeProperties = \{ name } -> Json.Encode.object [ ( "name", Json.Encode.string name ) ]
+                        , encodeFeatureAttributes = \{ id } -> [ ( "id", Json.Encode.int id ) ]
+                        , encodeCoordinates = \{ lng, lat, alt } -> Json.Encode.list Json.Encode.float [ lng, lat, alt ]
+                        }
                     |> expectEqualsJson """
                         {
                             "type": "FeatureCollection",
@@ -435,16 +483,16 @@ encodingTest =
                                     "name": "John Doe"
                                 },
                                 "geometry": {
-                                    "type": "MultiPoint",
-                                    "coordinates": [[32, 21]]
+                                    "type": "Point",
+                                    "coordinates": [32, 21, 400]
                                 }
                             }]
                         }
                         """
-        , fuzz (geoCollectionFuzzer (Fuzz.constant ())) "rountrips with decoding" <|
+        , fuzz (featureCollectionFuzzer (Fuzz.constant ())) "rountrips with decoding" <|
             \geocollection ->
                 geocollection
                     |> encode
-                    |> Json.Decode.decodeValue (GeoCollection.decoder (Json.Decode.map (always ()) Json.Decode.value))
+                    |> Json.Decode.decodeValue (FeatureCollection.decoder (Json.Decode.map (always ()) Json.Decode.value))
                     |> equalWithinTolerance (Ok geocollection)
         ]

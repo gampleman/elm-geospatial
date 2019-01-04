@@ -1,4 +1,4 @@
-module Polygon exposing (LinearRing(..), Polygon(..), area, equal, new)
+module Polygon exposing (LinearRing(..), Polygon(..), area, equal, fromBBox, new)
 
 import Angle
 import Area exposing (Area)
@@ -15,13 +15,15 @@ type LinearRing coordinate
     = LinearRing coordinate coordinate coordinate (List coordinate)
 
 
-
--- fromBBox : BBox -> Polygon WSG84
--- fromBBox bBox =
---     let
---
---     in
---     Polygon (LinearRing _ _ _ _ [_]) []
+{-| Creates a rectangular polygon from a BBox.
+-}
+fromBBox : BBox -> Polygon WGS84
+fromBBox bBox =
+    let
+        { southWest, northEast } =
+            BBox.coordinates bBox
+    in
+    Polygon (LinearRing southWest { lng = southWest.lng, lat = northEast.lat } northEast [ { lng = northEast.lng, lat = southWest.lat } ]) []
 
 
 new : List { lng : Float, lat : Float } -> Maybe (Polygon WGS84)
@@ -38,6 +40,27 @@ new coords =
             Nothing
 
 
+{-| While nothing prevents you from using normal elm equality (`==`), it may be too strict sometimes.
+
+Polygons consist of rings, and so while order within the ring matters, where you start does not. Furthermore, the direction of the ring usually doesn't matter (although some software does care about this).
+
+This equality function will make sure to align the rings properly before comparing them. Optionally you can instruct it to ingore the direction of the rings or only consider a number of significant decimal digits.
+
+    1  a -- b     2  b -- c    3  a -- d
+       |    |        |    |       |    |
+       d -- c        a -- d       b -- c
+
+    1: [(0, 0), (1, 0), (1, 1), (0, 1)]
+    2: [(0, 1), (0, 0), (1, 0), (1, 1)]
+    3: [(0, 0), (0, 1), (1, 1), (1, 0)]
+
+    In this figure the three polygons are identical squares,
+    but (1) and (2) differ in their starting point, whereas
+    (1) and (3) differ in their direction. This function
+    would consider (1) and (2) equal, but (1) and (3) only
+    if you passed ignoreDirection = True.
+
+-}
 equal : { precision : Int, ignoreDirection : Bool } -> Polygon WGS84 -> Polygon WGS84 -> Bool
 equal options (Polygon aOuter aHoles) (Polygon bOuter bHoles) =
     linearRingEqual options aOuter bOuter && List.all identity (List.map2 (linearRingEqual options) aHoles bHoles)
@@ -91,6 +114,8 @@ linearRingEqual { precision, ignoreDirection } ((LinearRing a1 a2 a3 a4s) as a) 
                 False
 
 
+{-| Computes the area of the polygon.
+-}
 area : Polygon WGS84 -> Area
 area (Polygon outside holes) =
     Quantity.abs (ringArea outside) |> Quantity.minus (Quantity.abs <| Quantity.sum <| List.map ringArea holes)

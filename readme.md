@@ -8,7 +8,7 @@ Welcome! elm-geospatial is a library for geospatial analysis. That means that it
 
 ## Concepts
 
-At the core of the data model is a `Feature coordinates data`. You can think of it as something that associates some actual geography with some arbitrary data about that geography. These typically come in collections, we call ours a `GeoCollection`.
+At the core of the data model is a `Feature coordinates data`. You can think of it as something that associates some actual geography with some arbitrary data about that geography. These typically come in collections, we call ours a `FeatureCollection`.
 It's really just a type alias to `List (Feature coordinates data)`, but there are some convenient features that
 make more sense at the collection level (like the decoders/encoders).
 There are three types of geography that a Feature can contain: `Points`, `LineStrings` and `Polygons`. These are all
