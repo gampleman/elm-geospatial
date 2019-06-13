@@ -10,7 +10,7 @@ import Fuzzers exposing (featureCollectionFuzzer)
 import Json.Decode
 import Json.Encode
 import LineString exposing (LineString(..))
-import Point exposing (Point(..))
+import Point
 import Polygon exposing (LinearRing(..), Polygon(..))
 import Test exposing (Test, describe, fuzz, test)
 import TestHelpers exposing (equalWithinTolerance)
@@ -316,7 +316,7 @@ strictDecodingTest =
                             , decoderMode = Strict
                             }
                         )
-                    |> Expect.equal (Ok [ Points [ Point { lng = 32, lat = 21, alt = 3 } ] () ])
+                    |> Expect.equal (Ok [ Points [ { lng = 32, lat = 21, alt = 3 } ] () ])
         ]
 
 
@@ -467,7 +467,7 @@ encodingTest =
                     """
         , test "can do custom encoding" <|
             \() ->
-                [ Points [ Point { lng = 32, lat = 21, alt = 400 } ] { id = 32, name = "John Doe" } ]
+                [ Points [ { lng = 32, lat = 21, alt = 400 } ] { id = 32, name = "John Doe" } ]
                     |> FeatureCollection.advancedEncode
                         { encodeProperties = \{ name } -> Json.Encode.object [ ( "name", Json.Encode.string name ) ]
                         , encodeFeatureAttributes = \{ id } -> [ ( "id", Json.Encode.int id ) ]

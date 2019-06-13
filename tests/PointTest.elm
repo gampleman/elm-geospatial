@@ -5,7 +5,7 @@ import BBox
 import Coordinates exposing (WGS84)
 import Expect exposing (Expectation, FloatingPointTolerance(..))
 import Length
-import Point exposing (Point(..))
+import Point
 import Polygon
 import Test exposing (..)
 import TestHelpers exposing (equalWithinTolerance, listsEquivalent, multiplePolygonsEqual, polygonsEqual)
@@ -27,11 +27,11 @@ bearingTest =
                 |> Expect.within (Absolute 0.01) 37.75
 
 
-expectEqualToPoint : FloatingPointTolerance -> Point WGS84 -> Point WGS84 -> Expectation
-expectEqualToPoint tolerance (Point { lat, lng }) =
+expectEqualToPoint : FloatingPointTolerance -> WGS84 -> WGS84 -> Expectation
+expectEqualToPoint tolerance { lat, lng } =
     Expect.all
-        [ \(Point actual) -> Expect.within tolerance (Angle.inDegrees lat) (Angle.inDegrees actual.lat)
-        , \(Point actual) -> Expect.within tolerance (Angle.inDegrees lng) (Angle.inDegrees actual.lng)
+        [ \actual -> Expect.within tolerance (Angle.inDegrees lat) (Angle.inDegrees actual.lat)
+        , \actual -> Expect.within tolerance (Angle.inDegrees lng) (Angle.inDegrees actual.lng)
         ]
 
 

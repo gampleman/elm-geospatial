@@ -2,3 +2,5 @@ elm-stuff/
 .DS_Store
 node_modules/
 package-lock.json
+examples/dist
+examples/.cache

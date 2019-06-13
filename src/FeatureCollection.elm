@@ -2,7 +2,8 @@ module FeatureCollection exposing
     ( FeatureCollection
     , decoder, advancedDecoder, DecoderMode(..)
     , encode, advancedEncode
-    , mapCoordinates, mapProperties
+    , mapCoordinates
+    , filterMap, map, voronoi
     )
 
 {-| A FeatureCollection is just a bunch of stuff in the world our app happens to care
@@ -32,13 +33,20 @@ While nothing is stopping you from using `List.map`, there are some more conveni
 -}
 
 import Angle
+import Array exposing (Array)
+import BBox exposing (BBox)
+import BoundingBox2d
 import Coordinates exposing (WGS84)
+import Dict
 import Feature exposing (Feature(..))
+import Helpers exposing (pointToPoint2d)
 import Json.Decode as Decode exposing (Decoder)
 import Json.Encode as Encode exposing (Value)
 import LineString exposing (LineString(..))
-import Point exposing (Point(..))
+import Point2d
 import Polygon exposing (LinearRing(..), Polygon(..))
+import Polygon2d
+import VoronoiDiagram2d exposing (Error(..))
 
 
 {-| Importantly, a FeatureCollection is just a type alias over a list of features.
@@ -60,7 +68,7 @@ mapCoordinates f =
         (\feature ->
             case feature of
                 Points points props ->
-                    Points (List.map (\(Point coord) -> Point (f coord)) points) props
+                    Points (List.map f points) props
 
                 LineStrings ls props ->
                     LineStrings (List.map (\(LineString a b cs) -> LineString (f a) (f b) (List.map f cs)) ls) props
@@ -76,8 +84,8 @@ mapCoordinates f =
 
 {-| Like `List.map`, but allows you to ignore the geometry and operate only on the custom data held with it.
 -}
-mapProperties : (a -> b) -> FeatureCollection coord a -> FeatureCollection coord b
-mapProperties f =
+map : (a -> b) -> FeatureCollection coord a -> FeatureCollection coord b
+map f =
     List.map
         (\feature ->
             case feature of
@@ -90,6 +98,139 @@ mapProperties f =
                 Polygons polys props ->
                     Polygons polys (f props)
         )
+
+
+filterMap : (a -> Maybe b) -> FeatureCollection coord a -> FeatureCollection coord b
+filterMap f =
+    List.foldr
+        (\feature xs ->
+            case feature of
+                Points points props ->
+                    case f props of
+                        Just sm ->
+                            Points points sm :: xs
+
+                        Nothing ->
+                            xs
+
+                LineStrings ls props ->
+                    case f props of
+                        Just sm ->
+                            LineStrings ls sm :: xs
+
+                        Nothing ->
+                            xs
+
+                Polygons polys props ->
+                    case f props of
+                        Just sm ->
+                            Polygons polys sm :: xs
+
+                        Nothing ->
+                            xs
+        )
+        []
+
+
+
+-- Geometry
+
+
+updatePoints res points =
+    let
+        ( pointIndex, newCoincidence ) =
+            points
+                |> List.indexedMap (\i p -> ( ( res.index, i ), pointToPoint2d p ))
+                |> List.foldr
+                    (\( address, point ) ( newPoints, coincidence ) ->
+                        if Dict.member (Point2d.coordinates point) coincidence then
+                            ( newPoints, coincidence )
+
+                        else
+                            ( ( address, point ) :: newPoints, Dict.insert (Point2d.coordinates point) address coincidence )
+                    )
+                    ( [], res.coincidence )
+    in
+    { index = res.index + 1
+    , input = Array.append res.input (Array.fromList pointIndex)
+    , coincidence = newCoincidence
+    }
+
+
+voronoi : BBox -> FeatureCollection WGS84 a -> FeatureCollection WGS84 a
+voronoi bbox features =
+    let
+        preprocessed =
+            List.foldr
+                (\feat res ->
+                    case feat of
+                        Points points _ ->
+                            updatePoints res points
+
+                        _ ->
+                            { res | index = res.index + 1 }
+                )
+                { index = 0, input = Array.empty, coincidence = Dict.empty }
+                features
+
+        boundingBox2d =
+            let
+                { southWest, northEast } =
+                    BBox.coordinates bbox
+            in
+            BoundingBox2d.from (pointToPoint2d southWest) (pointToPoint2d northEast)
+
+        polygon2dToPolygon poly =
+            Polygon2d.outerLoop poly
+                |> List.map (\point -> { lng = point |> Point2d.xCoordinate, lat = point |> Point2d.yCoordinate })
+                |> List.reverse
+                |> Polygon.new
+    in
+    case VoronoiDiagram2d.fromVerticesBy Tuple.second preprocessed.input of
+        Ok diagram ->
+            let
+                dict =
+                    VoronoiDiagram2d.polygons boundingBox2d diagram
+                        |> List.filterMap
+                            (\( ( address, point ), polygon ) ->
+                                Maybe.map (Tuple.pair address) (polygon2dToPolygon polygon)
+                            )
+                        |> Dict.fromList
+            in
+            features
+                |> List.indexedMap
+                    (\index feat ->
+                        case feat of
+                            Points points meta ->
+                                let
+                                    results =
+                                        List.indexedMap
+                                            (\i p ->
+                                                case Dict.get ( index, i ) dict of
+                                                    Just poly ->
+                                                        Just poly
+
+                                                    Nothing ->
+                                                        Dict.get (pointToPoint2d p |> Point2d.coordinates) preprocessed.coincidence
+                                                            |> Maybe.andThen (\addr -> Dict.get addr dict)
+                                            )
+                                            points
+                                            |> List.filterMap identity
+                                in
+                                case results of
+                                    [] ->
+                                        Nothing
+
+                                    _ ->
+                                        Just (Polygons results meta)
+
+                            other ->
+                                Just other
+                    )
+                |> List.filterMap identity
+
+        Err (CoincidentVertices a b) ->
+            []
 
 
 
@@ -183,14 +324,14 @@ strictFeatureDecoder coordDecoder propDecoder =
             )
 
 
-strictPointDecoder : Decoder coordinates -> Decoder (List (Point coordinates))
+strictPointDecoder : Decoder coordinates -> Decoder (List coordinates)
 strictPointDecoder coordDecoder =
-    Decode.map List.singleton <| Decode.map Point <| Decode.at [ "geometry", "coordinates" ] coordDecoder
+    Decode.map List.singleton <| Decode.at [ "geometry", "coordinates" ] coordDecoder
 
 
-strictMultiPointDecoder : Decoder coordinates -> Decoder (List (Point coordinates))
+strictMultiPointDecoder : Decoder coordinates -> Decoder (List coordinates)
 strictMultiPointDecoder coordDecoder =
-    Decode.map (List.map Point) <| Decode.at [ "geometry", "coordinates" ] <| Decode.list coordDecoder
+    Decode.at [ "geometry", "coordinates" ] <| Decode.list coordDecoder
 
 
 strictLineStringHelper : Decoder coordinates -> Decoder (LineString coordinates)
@@ -325,7 +466,7 @@ encodeGeometries : (coord -> Value) -> Feature coord a -> Value
 encodeGeometries encodePosition feature =
     case feature of
         Points points _ ->
-            encodeMultiOrSingle "Point" (\(Point position) -> encodePosition position) points
+            encodeMultiOrSingle "Point" (\position -> encodePosition position) points
 
         LineStrings lineStrings _ ->
             encodeMultiOrSingle "LineString" (\(LineString a b rest) -> Encode.list encodePosition (a :: b :: rest)) lineStrings

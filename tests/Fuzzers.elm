@@ -6,7 +6,7 @@ import Feature exposing (Feature(..))
 import FeatureCollection exposing (FeatureCollection)
 import Fuzz exposing (Fuzzer, list)
 import LineString exposing (LineString(..))
-import Point exposing (Point(..))
+import Point
 import Polygon exposing (LinearRing(..), Polygon(..))
 
 
@@ -37,7 +37,7 @@ shortList a =
 featureFuzzer : Fuzzer a -> Fuzzer (Feature WGS84 a)
 featureFuzzer props =
     Fuzz.oneOf
-        [ Fuzz.map2 Points (shortNonEmptyList pointFuzzer) props
+        [ Fuzz.map2 Points (shortNonEmptyList wsg84Fuzzer) props
         , Fuzz.map2 LineStrings (shortNonEmptyList lineStringFuzzer) props
         , Fuzz.map2 Polygons (shortNonEmptyList polygonFuzzer) props
         ]
@@ -46,11 +46,6 @@ featureFuzzer props =
 wsg84Fuzzer : Fuzzer WGS84
 wsg84Fuzzer =
     Fuzz.map2 WGS84 (Fuzz.map Angle.degrees (Fuzz.floatRange -90 90)) (Fuzz.map Angle.degrees (Fuzz.floatRange -180 180))
-
-
-pointFuzzer : Fuzzer (Point WGS84)
-pointFuzzer =
-    Fuzz.map Point wsg84Fuzzer
 
 
 lineStringFuzzer : Fuzzer (LineString WGS84)

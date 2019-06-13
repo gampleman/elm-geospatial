@@ -1,4 +1,27 @@
-module Point exposing (Point(..), bearing, destination, distance, new, voronoi)
+module Point exposing
+    ( new
+    , bearing, destination, distance
+    , voronoi
+    )
+
+{-| A Point represents a single point in a coordinate space.
+
+
+## Constructing
+
+@docs new
+
+
+## Measurement
+
+@docs bearing, destination, distance
+
+
+## Transformation
+
+@docs voronoi
+
+-}
 
 import Angle exposing (Angle)
 import Array
@@ -6,7 +29,7 @@ import BBox exposing (BBox)
 import BoundingBox2d exposing (BoundingBox2d)
 import Coordinates exposing (WGS84)
 import Dict
-import Helpers exposing (angleToLength, degreesToAngle, lengthToAngle)
+import Helpers exposing (angleToLength, degreesToAngle, lengthToAngle, pointToPoint2d)
 import Length exposing (Length)
 import Point2d exposing (Point2d)
 import Polygon exposing (Polygon)
@@ -15,16 +38,12 @@ import Quantity exposing (Quantity(..))
 import VoronoiDiagram2d exposing (VoronoiDiagram2d)
 
 
-type Point coordinate
-    = Point coordinate
-
-
-new : { lng : Float, lat : Float } -> Point WGS84
+new : { lng : Float, lat : Float } -> WGS84
 new { lng, lat } =
-    Point { lng = Angle.degrees lng, lat = Angle.degrees lat }
+    { lng = Angle.degrees lng, lat = Angle.degrees lat }
 
 
-asAngles (Point { lng, lat }) =
+asAngles { lng, lat } =
     ( lng, lat )
 
 
@@ -41,7 +60,7 @@ asAngles (Point { lng, lat }) =
     bearing point1 point2  --> Angle.degrees -170
 
 -}
-bearing : Point WGS84 -> Point WGS84 -> Angle
+bearing : WGS84 -> WGS84 -> Angle
 bearing start end =
     let
         ( lon1, lat1 ) =
@@ -64,7 +83,7 @@ bearing start end =
     Angle.atan2 a b
 
 
-destination : Angle -> Length -> Point WGS84 -> Point WGS84
+destination : Angle -> Length -> WGS84 -> WGS84
 destination bearingRad dist origin =
     let
         ( lon1, lat1 ) =
@@ -80,10 +99,10 @@ destination bearingRad dist origin =
         lon2 =
             Quantity.plus lon1 <| Angle.radians <| atan2 (Angle.sin bearingRad * Angle.sin radians * Angle.cos lat1) (Angle.cos radians - Angle.sin lat1 * Angle.sin lat2)
     in
-    Point { lng = lon2, lat = lat2 }
+    { lng = lon2, lat = lat2 }
 
 
-distance : Point WGS84 -> Point WGS84 -> Length
+distance : WGS84 -> WGS84 -> Length
 distance from to =
     let
         ( lon1, lat1 ) =
@@ -107,18 +126,13 @@ distance from to =
     angleToLength (Angle.radians (2 * atan2 (sqrt a) (sqrt (1 - a))))
 
 
-pointToPoint2d : Point WGS84 -> Point2d
-pointToPoint2d (Point { lng, lat }) =
-    Point2d.fromCoordinates ( Angle.inDegrees lng, Angle.inDegrees lat )
-
-
 bboxToBoundingBox2d : BBox -> BoundingBox2d
 bboxToBoundingBox2d bbox =
     let
         { southWest, northEast } =
             BBox.coordinates bbox
     in
-    BoundingBox2d.from (pointToPoint2d (Point southWest)) (pointToPoint2d (Point northEast))
+    BoundingBox2d.from (pointToPoint2d southWest) (pointToPoint2d northEast)
 
 
 polygon2dToPolygon : Polygon2d -> Maybe (Polygon WGS84)
@@ -129,7 +143,7 @@ polygon2dToPolygon poly =
         |> Polygon.new
 
 
-voronoi : BBox -> List (Point WGS84) -> List (Maybe (Polygon WGS84))
+voronoi : BBox -> List WGS84 -> List (Maybe (Polygon WGS84))
 voronoi bbox points =
     case VoronoiDiagram2d.fromPoints (Array.fromList (List.map pointToPoint2d points)) of
         Ok diagram ->
@@ -140,7 +154,7 @@ voronoi bbox points =
                         |> Dict.fromList
             in
             points
-                |> List.map (\(Point { lng, lat }) -> Dict.get ( Angle.inDegrees lng, Angle.inDegrees lat ) dict)
+                |> List.map (\{ lng, lat } -> Dict.get ( Angle.inDegrees lng, Angle.inDegrees lat ) dict)
 
         Err _ ->
             List.map (always Nothing) points
