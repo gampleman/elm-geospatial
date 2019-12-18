@@ -18,7 +18,7 @@ However, coordinates are expressed as a type variable, so you can use this code 
 
 ## FAQ
 
-(Hey! This module isn't even released. Nobody asked me anything about this. But it's kinda convenient to write thos way, so bear with me.)
+(Hey! This module isn't even released. Nobody asked me anything about this. But it's kinda convenient to write this way, so bear with me.)
 
 **Why not just use mgold/elm-geojson instead?**
 
